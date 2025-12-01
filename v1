@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tokyo Trip V9</title>
+
+<!-- Tailwind config before CDN -->
+<script>
+  tailwind = window.tailwind || {};
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { 'jp-cream': '#FEFCE8', 'jp-yellow': '#FDE047', 'jp-accent': '#EAB308', 'jp-dark': '#4B5563' },
+        fontFamily: { sans: ['"Zen Maru Gothic"', 'sans-serif'], mono: ['"Space Mono"', 'monospace'] }
+      }
+    }
+  };
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Vue 3 -->
+<script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+<!-- vuedraggable -->
+<script src="https://cdn.jsdelivr.net/npm/vuedraggable@4.1.0/dist/vuedraggable.umd.js"></script>
+<!-- icons -->
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<!-- jsPDF & html2canvas for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  body { font-family: "Zen Maru Gothic", sans-serif; background: #FEFCE8; color:#374151; -webkit-tap-highlight-color:transparent; }
+  .card-shadow { box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
+  .receipt-edge { background-image: linear-gradient(135deg, #ffffff 5px, transparent 0), linear-gradient(-135deg, #ffffff 5px, transparent 0); background-size:10px 10px; height:10px; width:100%; position:absolute; bottom:-10px; left:0;}
+  [v-cloak]{display:none;}
+  @keyframes bounce-in { 0% { transform:translateY(10px) scale(.98); opacity:0 } 60% { transform:translateY(-6px) scale(1.02); opacity:1 } 100% { transform:translateY(0) scale(1); opacity:1 } }
+  .bounce-in { animation: bounce-in .42s cubic-bezier(.22,.9,.32,1); }
+</style>
+</head>
+<body>
+<div id="app" v-cloak class="max-w-3xl mx-auto min-h-screen p-4">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-2xl font-bold">TOKYO <span class="text-jp-accent">V9</span></h1>
+      <p class="text-sm text-gray-500">12/7 - 12/12 • Solo Trip</p>
+    </div>
+    <div class="flex gap-2">
+      <button @click="exportJSON" class="px-3 py-2 bg-gray-800 text-white rounded">Export JSON</button>
+      <button @click="exportPDF" class="px-3 py-2 bg-blue-600 text-white rounded">Export PDF</button>
+      <button @click="saveToFileSystem" class="px-3 py-2 bg-green-600 text-white rounded">Save (File System)</button>
+      <button @click="downloadBackup" class="px-3 py-2 bg-yellow-500 text-white rounded">Backup Download</button>
+      <button @click="importJSON" class="px-3 py-2 bg-white border rounded">Import JSON</button>
+    </div>
+  </header>
+
+  <!-- Hotel Card (fixed) -->
+  <section class="bg-white p-4 rounded-xl card-shadow mb-4 flex items-start gap-3">
+    <i class="ph-fill ph-house text-jp-accent text-2xl"></i>
+    <div class="flex-1">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-bold">🏨 秋葉原港灣酒店 (Akihabara Bay Hotel)</div>
+          <div class="text-xs text-gray-500">📍 東京都千代田区神田練塀町44-4 • 步行至秋葉原站約 5 分鐘</div>
+          <div class="text-xs text-gray-400 mt-1">🕒 Check-in 15:00 | Check-out 10:00</div>
+        </div>
+        <div>
+          <a :href="generateHotelLink()" target="_blank" class="text-blue-600">導航</a>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-gray-500">（固定住宿 — 若需更換，請於每日行程中新增「住宿」項目）</div>
+    </div>
+  </section>
+
+  <!-- Top controls -->
+  <div class="flex gap-2 mb-3">
+    <div class="flex-1">
+      <input v-model="tripTitle" class="w-full p-2 rounded border" placeholder="Trip title (e.g., Tokyo Dec 2025)" />
+    </div>
+    <div>
+      <input v-model.number="rate" type="number" step="0.001" class="w-32 p-2 rounded border" />
+      <div class="text-xs text-gray-400 mt-1">Rate: JPY → HKD</div>
+    </div>
+  </div>
+
+  <!-- Date tabs -->
+  <div class="flex gap-2 overflow-x-auto mb-4">
+    <button @click="currentTab='PRE'" :class="tabClass(currentTab==='PRE')" class="px-3 py-2 rounded">PRE</button>
+    <button v-for="(d, i) in itinerary" :key="d.date" @click="currentTab=i" :class="tabClass(currentTab===i)" class="px-3 py-2 rounded">Day {{i+1}} • {{ formatDateShort(d.date) }}</button>
+  </div>
+
+  <!-- Main -->
+  <main class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Left: PRE or day content -->
+    <section class="col-span-2">
+      <!-- PRE -->
+      <div v-if="currentTab==='PRE'" class="bg-white p-4 rounded-xl card-shadow">
+        <h2 class="font-bold mb-2">行前清單</h2>
+        <div v-for="(t, idx) in todoList" :key="idx" class="flex items-center gap-2 mb-2">
+          <input type="checkbox" v-model="t.done" />
+          <input v-model="t.text" class="flex-1 p-2 border rounded" />
+          <button @click="todoList.splice(idx,1)" class="text-red-500">刪除</button>
+        </div>
+        <button @click="todoList.push({text:'',done:false})" class="mt-2 px-3 py-2 bg-yellow-200 rounded">新增項目</button>
+      </div>
+
+      <!-- Day view -->
+      <div v-else class="bg-white p-4 rounded-xl card-shadow">
+        <div class="flex items-center justify-between mb-3">
+          <input v-model="itinerary[currentTab].title" class="font-bold text-lg p-1" placeholder="Day title..." />
+          <div class="flex gap-2">
+            <button @click="addItem" class="px-3 py-1 bg-gray-800 text-white rounded">新增項目</button>
+            <button @click="autoSort()" class="px-3 py-1 bg-gray-200 rounded">依時間排序</button>
+          </div>
+        </div>
+
+        <!-- draggable list -->
+        <draggable v-model="itinerary[currentTab].items" @end="onDragEnd" item-key="id">
+          <template #item="{element: item, index: idx}">
+            <article class="border-l-4 p-3 mb-3 rounded" :class="getBorder(item.type)">
+              <div class="flex items-start gap-2">
+                <div class="w-20">
+                  <input type="time" v-model="item.time" @change="autoSort" class="w-full p-1 border rounded text-sm" />
+                  <div class="text-xs text-gray-400 mt-1">{{ item.type }}</div>
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <select v-model="item.type" class="p-1 border rounded text-sm">
+                      <option value="景點">🏔️ 景點</option>
+                      <option value="美食">🍜 美食</option>
+                      <option value="購物">🛍️ 購物</option>
+                      <option value="交通">🚅 交通</option>
+                      <option value="住宿">🏨 住宿</option>
+                    </select>
+                    <input v-model="item.name" class="flex-1 p-1 border rounded" placeholder="地點名稱" />
+                    <button @click="deleteItem(idx)" class="text-red-500">刪除</button>
+                  </div>
+                  <textarea v-model="item.description" class="w-full mt-2 p-2 border rounded text-sm" placeholder="備註..."></textarea>
+
+                  <!-- shopping list -->
+                  <div v-if="item.type==='購物'" class="mt-2">
+                    <div v-for="(s,si) in item.shoppingList" :key="si" class="flex items-center gap-2 mb-1">
+                      <input type="checkbox" v-model="s.done" />
+                      <input v-model="s.name" class="flex-1 p-1 border rounded text-sm" />
+                      <input type="file" @change="(e)=>handleImage(e,s)" />
+                      <button @click="item.shoppingList.splice(si,1)" class="text-xs text-red-500">刪</button>
+                    </div>
+                    <button @click="item.shoppingList.push({name:'',done:false})" class="mt-2 text-sm text-blue-600">+ 商品</button>
+                  </div>
+
+                  <!-- expenses -->
+                  <div class="mt-2 border-t pt-2">
+                    <div v-for="(exp, ei) in item.expenses" :key="ei" class="flex items-center gap-2 mb-1">
+                      <input v-model="exp.desc" placeholder="項目" class="p-1 border rounded text-sm w-32" />
+                      <input v-model.number="exp.amount" type="number" placeholder="金額" class="p-1 border rounded text-sm w-20" />
+                      <select v-model="exp.curr" class="p-1 border rounded text-sm w-20">
+                        <option value="JPY">JPY</option>
+                        <option value="HKD">HKD</option>
+                      </select>
+                      <select v-model="exp.method" class="p-1 border rounded text-sm w-28">
+                        <option value="cash">Cash</option>
+                        <option value="debit">Debit</option>
+                        <option value="credit">Credit</option>
+                        <option value="paypay">PayPay</option>
+                      </select>
+                      <div class="font-mono w-24 text-right">{{ formatExpenseLocal(exp) }}</div>
+                      <button @click="item.expenses.splice(ei,1)" class="text-red-500">刪</button>
+                    </div>
+                    <button @click="item.expenses.push({desc:'',amount:0,curr:'JPY',method:'cash'})" class="mt-2 text-sm text-blue-600">+ 新增開支</button>
+                  </div>
+
+                </div>
+              </div>
+            </article>
+          </template>
+        </draggable>
+
+      </div>
+    </section>
+
+    <!-- Right column: summary, flights, files -->
+    <aside>
+
+      <!-- Receipt / totals -->
+      <div class="bg-white p-4 rounded-xl card-shadow mb-4">
+        <h3 class="font-bold mb-2">花費總結</h3>
+        <div class="text-sm text-gray-600 mb-2">總計（HKD）: <span class="font-mono font-bold">{{ totalHKD.toFixed(2) }}</span></div>
+        <div class="text-xs text-gray-500 mb-1">JPY 總計: {{ totalJPY.toFixed(0) }} JPY</div>
+        <div class="text-xs text-gray-500 mb-1">HKD 總計: {{ totalHKDFromHKD.toFixed(2) }} HKD</div>
+        <div class="text-xs text-gray-500">By method:</div>
+        <div class="mt-2 text-sm">
+          <div v-for="m in ['cash','debit','credit','paypay']" :key="m" class="flex justify-between">
+            <div class="capitalize">{{m}}</div>
+            <div class="font-mono">{{ totalByMethod(m).toFixed(2) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flights (editable) -->
+      <div class="bg-white p-4 rounded-xl card-shadow mb-4">
+        <h3 class="font-bold mb-2">Flights</h3>
+        <div v-for="(f, idx) in flights" :key="idx" class="mb-3 border rounded p-2">
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="font-bold">{{f.code}} • {{f.date}}</div>
+              <div class="text-xs text-gray-500">{{f.from}} {{f.depart}} → {{f.to}} {{f.arrive}}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs">Terminal {{f.terminal}} ・ Gate <input v-model="f.gate" class="w-16 p-1 border rounded text-sm" /></div>
+              <div class="font-mono text-sm mt-1">{{f.code}}</div>
+            </div>
+          </div>
+        </div>
+        <button @click="openFlightEditor" class="mt-2 px-3 py-1 bg-gray-800 text-white rounded">Edit Flights</button>
+      </div>
+
+      <!-- File center -->
+      <div class="bg-white p-4 rounded-xl card-shadow mb-4">
+        <h3 class="font-bold mb-2">檔案保存中心</h3>
+        <label class="block cursor-pointer p-2 border rounded text-center text-sm bg-gray-50">
+          上傳檔案（截圖 / 訂位）
+          <input type="file" class="hidden" @change="saveFile" />
+        </label>
+        <div class="mt-3 max-h-40 overflow-auto">
+          <div v-for="(f, idx) in fileCenter" :key="idx" class="flex items-center gap-2 mb-2">
+            <img :src="f.image" class="w-12 h-10 object-cover rounded" />
+            <div class="flex-1 text-xs">
+              <div class="font-bold">{{ f.name }}</div>
+              <div class="text-gray-400">{{ f.type }}</div>
+              <div class="flex gap-2 mt-1">
+                <a v-if="f.links.maps" :href="f.links.maps" target="_blank" class="text-blue-600 text-xs">Maps</a>
+                <a v-if="f.links.tabelog" :href="f.links.tabelog" target="_blank" class="text-red-500 text-xs">Tabelog</a>
+                <a v-if="f.links.website" :href="f.links.website" target="_blank" class="text-green-600 text-xs">Site</a>
+              </div>
+            </div>
+            <button @click="fileCenter.splice(idx,1)" class="text-red-500">刪</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls: clear, reset -->
+      <div class="bg-white p-3 rounded-xl card-shadow">
+        <button @click="resetToDefault" class="w-full mb-2 px-3 py-2 bg-red-500 text-white rounded">Reset to default</button>
+        <button @click="clearStorage" class="w-full px-3 py-2 bg-gray-200 rounded">Clear localStorage</button>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Flight Editor Modal -->
+  <div v-if="editingFlights" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @click.self="editingFlights=false">
+    <div class="bg-white p-4 rounded-xl w-full max-w-xl bounce-in">
+      <h3 class="font-bold mb-2">Edit Flights</h3>
+      <div v-for="(f, i) in flights" :key="i" class="border p-2 rounded mb-2">
+        <div class="flex gap-2">
+          <input v-model="f.date" class="p-1 border rounded w-28" />
+          <input v-model="f.code" class="p-1 border rounded flex-1" />
+        </div>
+        <div class="flex gap-2 mt-2">
+          <div>
+            <div class="text-xs text-gray-400">From</div>
+            <input v-model="f.from" class="p-1 border rounded" />
+          </div>
+          <div>
+            <div class="text-xs text-gray-400">Depart</div>
+            <input v-model="f.depart" class="p-1 border rounded" />
+          </div>
+          <div>
+            <div class="text-xs text-gray-400">To</div>
+            <input v-model="f.to" class="p-1 border rounded" />
+          </div>
+          <div>
+            <div class="text-xs text-gray-400">Arrive</div>
+            <input v-model="f.arrive" class="p-1 border rounded" />
+          </div>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <input v-model="f.terminal" placeholder="Terminal" class="p-1 border rounded w-24" />
+          <input v-model="f.gate" placeholder="Gate" class="p-1 border rounded w-24" />
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button @click="editingFlights=false" class="px-3 py-1 bg-gray-200 rounded">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import input hidden -->
+  <input id="importFileInput" type="file" accept="application/json" style="display:none" />
+
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch } = Vue;
+const draggable = window.vuedraggable;
+
+createApp({
+  components: { draggable },
+  setup() {
+    // --- state ---
+    const STORAGE_KEY = 'tokyo_v9_save_v1';
+    const tripTitle = ref('Tokyo Dec 2025');
+    const currentTab = ref('PRE');
+    const rate = ref(0.052);
+
+    const defaultFlights = [
+      { date:"12/07", from:"HKG", to:"NRT", depart:"14:00", arrive:"19:05", code:"UO650", terminal:"1", gate:"12" },
+      { date:"12/12", from:"NRT", to:"HKG", depart:"16:55", arrive:"21:25", code:"UO871", terminal:"1", gate:"18" }
+    ];
+    const flights = ref(JSON.parse(JSON.stringify(defaultFlights)));
+
+    const todoList = ref([{text:'購買 eSIM', done:false}]);
+
+    const defaultItinerary = [
+      { date:"2025-12-07", title:"Arrive", items:[
+        { id:Id(), time:"21:00", type:"住宿", name:"秋葉原港灣酒店", description:"Check-in，位於秋葉原電器街與神田之間。", shoppingList:[], expenses:[], rating:0, notes:'', image:null },
+        { id:Id(), time:"21:30", type:"美食", name:"らーめん 鴨to葱 上野御徒町本店", description:"只用鴨、蔥、水熬製湯頭。", shoppingList:[], expenses:[], rating:0, notes:'', image:null }
+      ]},
+      { date:"2025-12-08", title:"Shop & Eat", items:[
+        { id:Id(), time:"08:30", type:"美食", name:"Katsuo Shokudo", description:"米其林必比登推薦，現刨鰹魚片。", shoppingList:[], expenses:[], rating:0, notes:'', image:null},
+        { id:Id(), time:"10:00", type:"購物", name:"Bic Camera 秋葉原店", description:"購買發熱衣(Heattech)、圍巾。", shoppingList:[], expenses:[], rating:0, notes:'', image:null},
+        { id:Id(), time:"12:30", type:"美食", name:"BASO OMOTESANDO", description:"沾麵蕎麥麵。", shoppingList:[], expenses:[], rating:0, notes:'', image:null}
+      ]},
+      { date:"2025-12-09", title:"Fuji Day", items:[
+        { id:Id(), time:"07:30", type:"景點", name:"富士山一日遊集合", description:"新宿集合。", shoppingList:[], expenses:[], rating:0, notes:'', image:null},
+        { id:Id(), time:"14:00", type:"購物", name:"御殿場 Premium Outlets", description:"運動品牌。", shoppingList:[], expenses:[], rating:0, notes:'', image:null},
+      ]},
+      { date:"2025-12-10", title:"Kichijoji", items:[
+        { id:Id(), time:"10:00", type:"交通", name:"前往吉祥寺", description:"JR中央線。", shoppingList:[], expenses:[], rating:0, notes:'', image:null}
+      ]},
+      { date:"2025-12-11", title:"Shopping", items:[
+        { id:Id(), time:"12:00", type:"購物", name:"Travelers Factory 中目黑", description:"筆記本。", shoppingList:[], expenses:[], rating:0, notes:'', image:null}
+      ]},
+      { date:"2025-12-12", title:"Last Buy", items:[
+        { id:Id(), time:"09:00", type:"購物", name:"最後採買", description:"藥妝補貨。", shoppingList:[], expenses:[], rating:0, notes:'', image:null}
+      ]}
+    ];
+
+    const itinerary = ref(JSON.parse(JSON.stringify(defaultItinerary)));
+
+    const fileCenter = ref([]);
+    const editingFlights = ref(false);
+    const viewingImage = ref(null);
+
+    // --- helpers ---
+    function Id(){ return 'id_'+Math.random().toString(36).slice(2,9); }
+    const tabClass = (active) => active ? 'bg-jp-yellow text-gray-900' : 'bg-white text-gray-500';
+
+    const getBorder = (type) => {
+      const map = { '景點':'border-green-400', '美食':'border-orange-400', '購物':'border-pink-400', '交通':'border-gray-400', '住宿':'border-purple-400' };
+      return map[type] || 'border-blue-400';
+    };
+
+    const formatDateShort = (d) => d ? d.slice(5).replace('-','/') : '';
+
+    // expense formatting: convert to HKD for display using rate
+    const formatExpenseLocal = (exp) => {
+      const amt = Number(exp.amount || 0);
+      if (exp.curr === 'JPY') {
+        return (amt * rate.value).toFixed(2) + ' HKD';
+      } else {
+        return Number(amt).toFixed(2) + ' HKD';
+      }
+    };
+
+    // calculations
+    const totalJPY = computed(() => {
+      return itinerary.value.flatMap(d => d.items).flatMap(i => i.expenses || []).filter(e=>e.curr==='JPY').reduce((s,e)=>s + (Number(e.amount)||0),0);
+    });
+    const totalHKDFromHKD = computed(()=> {
+      return itinerary.value.flatMap(d => d.items).flatMap(i => i.expenses || []).filter(e=>e.curr==='HKD').reduce((s,e)=>s + (Number(e.amount)||0),0);
+    });
+    const totalHKD = computed(()=> {
+      // JPY->HKD + HKD
+      return (totalJPY.value * rate.value) + totalHKDFromHKD.value;
+    });
+
+    const totalByMethod = (method) => {
+      return itinerary.value.flatMap(d => d.items).flatMap(i => i.expenses || []).filter(e=>e.method===method).reduce((s,e)=>{
+        const amt = Number(e.amount)||0;
+        const converted = e.curr === 'JPY' ? amt * rate.value : amt;
+        return s + converted;
+      },0);
+    };
+
+    // item/day totals
+    const calcItemTotal = (item) => {
+      if (!item || !Array.isArray(item.expenses)) return 0;
+      return item.expenses.reduce((s,e)=> {
+        const amt = Number(e.amount)||0;
+        return s + (e.curr === 'JPY' ? amt * rate.value : amt);
+      },0);
+    };
+    const calcDayTotal = (day) => {
+      if (!day || !Array.isArray(day.items)) return 0;
+      return day.items.reduce((s,i)=> s + calcItemTotal(i), 0);
+    };
+
+    // --- drag & sort ---
+    const autoSort = () => {
+      const tabIndex = currentTab.value;
+      if (tabIndex === 'PRE') return;
+      const items = itinerary.value[tabIndex].items;
+      items.sort((a,b)=> (a.time || '').localeCompare(b.time || ''));
+    };
+    const onDragEnd = (evt) => {
+      // after drag, ensure time-based order if desired
+      autoSort();
+    };
+
+    // add & delete
+    const addItem = () => {
+      const tabIndex = currentTab.value;
+      if (tabIndex === 'PRE') return;
+      itinerary.value[tabIndex].items.push({ id:Id(), time:"10:00", type:"景點", name:"", description:"", shoppingList:[], expenses:[], rating:0, notes:'', image:null });
+    };
+    const deleteItem = (idx) => {
+      const tabIndex = currentTab.value;
+      if (tabIndex === 'PRE') return;
+      itinerary.value[tabIndex].items.splice(idx,1);
+    };
+
+    // file center
+    const saveFile = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        fileCenter.value.push({ name:file.name, type:file.type, image:ev.target.result, links:{} });
+      };
+      reader.readAsDataURL(file);
+      // clear input value so same file can be added later
+      e.target.value = '';
+    };
+    const handleImage = (e, target) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => target.image = ev.target.result;
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    };
+
+    // flights editor
+    const openFlightEditor = ()=> editingFlights.value = true;
+
+    // --- persistence: localStorage ---
+    const saveToLocal = () => {
+      try {
+        const payload = {
+          tripTitle: tripTitle.value,
+          rate: rate.value,
+          flights: flights.value,
+          todoList: todoList.value,
+          itinerary: itinerary.value,
+          fileCenter: fileCenter.value,
+          updated: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        // console.log('saved');
+      } catch (err) { console.error('save error', err); }
+    };
+
+    const loadFromLocal = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        tripTitle.value = parsed.tripTitle || tripTitle.value;
+        rate.value = parsed.rate || rate.value;
+        if (parsed.flights) flights.value = parsed.flights;
+        if (parsed.todoList) todoList.value = parsed.todoList;
+        if (parsed.itinerary) itinerary.value = parsed.itinerary;
+        if (parsed.fileCenter) fileCenter.value = parsed.fileCenter;
+        return true;
+      } catch (err) {
+        console.error('load error', err);
+        return false;
+      }
+    };
+
+    // initial load
+    if (!loadFromLocal()) {
+      // first time: keep defaults
+    }
+
+    // watch and auto-save deep
+    watch([rate, flights, todoList, itinerary, fileCenter, tripTitle], () => {
+      saveToLocal();
+    }, { deep:true });
+
+    // reset & clear
+    const resetToDefault = () => {
+      if (!confirm('Reset to default itinerary?')) return;
+      itinerary.value = JSON.parse(JSON.stringify(defaultItinerary));
+      flights.value = JSON.parse(JSON.stringify(defaultFlights));
+      todoList.value = [{text:'購買 eSIM', done:false}];
+      fileCenter.value = [];
+      saveToLocal();
+    };
+    const clearStorage = () => {
+      if (!confirm('Clear localStorage? This will remove saved trip data.')) return;
+      localStorage.removeItem(STORAGE_KEY);
+      location.reload();
+    };
+
+    // --- export/import JSON & PDF & Backup ---
+    const exportJSON = () => {
+      const data = {
+        tripTitle: tripTitle.value,
+        rate: rate.value,
+        flights: flights.value,
+        todoList: todoList.value,
+        itinerary: itinerary.value,
+        fileCenter: fileCenter.value,
+        exportedAt: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${tripTitle.value.replace(/\s+/g,'_')}_backup.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const downloadBackup = () => exportJSON();
+
+    // Save using File System Access API (if available) - user can save to iCloud Drive or mounted Google Drive
+    const saveToFileSystem = async () => {
+      const data = {
+        tripTitle: tripTitle.value,
+        rate: rate.value,
+        flights: flights.value,
+        todoList: todoList.value,
+        itinerary: itinerary.value,
+        fileCenter: fileCenter.value,
+        exportedAt: new Date().toISOString()
+      };
+      const text = JSON.stringify(data, null, 2);
+      // File System Access API (Chromium)
+      if (window.showSaveFilePicker) {
+        try {
+          const opts = { suggestedName: `${tripTitle.value.replace(/\s+/g,'_')}_backup.json`, types:[{description:'JSON Files', accept:{'application/json':['.json']}}] };
+          const handle = await window.showSaveFilePicker(opts);
+          const writable = await handle.createWritable();
+          await writable.write(text);
+          await writable.close();
+          alert('Saved to file successfully. You can move this file into Google Drive / iCloud Drive.');
+        } catch (err) {
+          console.error(err);
+          alert('Save canceled or failed. Browser may not support file picker.');
+        }
+        return;
+      }
+      // fallback: trigger download
+      exportJSON();
+    };
+
+    // Export PDF (summary): use html2canvas + jsPDF
+    const exportPDF = async () => {
+      try {
+        const summaryEl = document.createElement('div');
+        summaryEl.style.width = '800px';
+        summaryEl.style.padding = '20px';
+        summaryEl.style.fontFamily = 'sans-serif';
+        summaryEl.innerHTML = `<h2>${tripTitle.value} — Summary</h2><p>Exported at: ${new Date().toLocaleString()}</p>`;
+        itinerary.value.forEach((d, idx) => {
+          summaryEl.innerHTML += `<h3>Day ${idx+1} • ${d.date} • ${d.title || ''}</h3>`;
+          d.items.forEach(it => {
+            summaryEl.innerHTML += `<div><b>${it.time}</b> ${it.name || ''} (${it.type}) — ${it.description || ''}</div>`;
+          });
+        });
+        document.body.appendChild(summaryEl);
+        const canvas = await html2canvas(summaryEl, { scale:1, useCORS:true });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth() - 40;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        pdf.addImage(imgData, 'PNG', 20, 20, pdfWidth, pdfHeight);
+        pdf.save(`${tripTitle.value.replace(/\s+/g,'_')}_summary.pdf`);
+        document.body.removeChild(summaryEl);
+      } catch (err) {
+        console.error('PDF export failed', err);
+        alert('PDF export failed. Check console for details.');
+      }
+    };
+
+    // import JSON (file picker)
+    const importJSON = () => {
+      const input = document.getElementById('importFileInput');
+      input.onchange = (ev) => {
+        const file = ev.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (confirm('Importing will replace current trip data. Continue?')) {
+              tripTitle.value = parsed.tripTitle || tripTitle.value;
+              rate.value = parsed.rate || rate.value;
+              flights.value = parsed.flights || flights.value;
+              todoList.value = parsed.todoList || todoList.value;
+              itinerary.value = parsed.itinerary || itinerary.value;
+              fileCenter.value = parsed.fileCenter || fileCenter.value;
+              saveToLocal();
+              alert('Import successful');
+            }
+          } catch (err) {
+            alert('Invalid JSON file');
+          }
+        };
+        reader.readAsText(file);
+        input.value = '';
+      };
+      input.click();
+    };
+
+    // --- optional Google Drive / iCloud instructions & placeholder ---
+    // NOTE: Automatic uploads to Google Drive require OAuth 2.0 web flow and Drive API enabling.
+    // If you want, I can help you add Google Drive upload: you'll need to create a Google Cloud project,
+    // enable Drive API, and provide a client ID. Then we can implement gapi.auth2 or OAuth 2.0 popup to upload.
+    // iCloud direct upload from the browser isn't provided by Apple; use iCloud Drive via desktop or mobile Files app.
+
+    // --- misc utilities ---
+    const openFlightEditor = () => editingFlights.value = true;
+
+    // initial auto-sort
+    setTimeout(()=> autoSort(), 200);
+
+    return {
+      tripTitle, currentTab, rate, flights, todoList, itinerary, fileCenter,
+      editingFlights, viewingImage,
+      tabClass, formatDateShort, addItem, deleteItem, getBorder, calcItemTotal, calcDayTotal,
+      totalJPY, totalHKD, totalByMethod, totalHKDFromHKD, totalByMethod,
+      autoSort, onDragEnd, handleImage, saveFile, openFlightEditor, exportJSON,
+      exportPDF, saveToFileSystem, downloadBackup, importJSON, resetToDefault, clearStorage,
+      formatExpenseLocal
+    };
+  }
+      // 修復資料 - 統一所有 item 格式（防止 Vue 崩潰）
+function normalizeItem(item) {
+    return {
+        id: item.id || Date.now() + Math.random(),
+        time: item.time || "10:00",
+        type: item.type || "景點",
+        name: item.name || "",
+        description: item.description || "",
+        shoppingList: item.shoppingList || [],
+        expenses: item.expenses || [],
+        rating: item.rating || 0,
+        notes: item.notes || "",
+        showExpense: true,
+    };
+}
+
+const itineraryData = ref(
+    fullData.map(d => ({
+        date: d.date,
+        title: "",
+        items: (d.items || []).map(i => normalizeItem(i)),
+    }))
+);
+}).mount('#app');
+</script>
+</body>
+</html>
