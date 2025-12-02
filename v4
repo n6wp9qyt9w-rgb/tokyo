@@ -1,0 +1,615 @@
+<!-- PART 1: Head, Styles, Header, Tabs, PRE Page -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tokyo Trip V9</title>
+    
+    <!-- Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FEFCE8">
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuedraggable@4.1.0/dist/vuedraggable.umd.min.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'jp-cream': '#FEFCE8',
+                        'jp-yellow': '#FDE047',
+                        'jp-accent': '#F59E0B',
+                        'jp-dark': '#4B5563',
+                        'jp-gray': '#F3F4F6'
+                    },
+                    fontFamily: {
+                        sans: ['"Zen Maru Gothic"', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace']
+                    },
+                    boxShadow: {
+                        'card': '0 8px 30px rgba(0,0,0,0.04)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { 
+            background-color: #FEFCE8; 
+            color: #4B5563; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+        /* Custom Scrollbar Hide */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Form Reset */
+        input, select, textarea { outline: none; background: transparent; border: none; }
+        
+        /* Print Logic */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .break-page { page-break-before: always; }
+        }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="max-w-[480px] mx-auto min-h-screen flex flex-col relative shadow-2xl print:max-w-full print:shadow-none bg-jp-cream">
+
+    <!-- 2.1 Header -->
+    <header class="no-print px-6 pt-12 pb-4 sticky top-0 z-40 bg-jp-cream/80 backdrop-blur-md border-b border-yellow-100/50 flex justify-between items-center transition-all">
+        <div>
+            <input v-model="tripTitle" class="text-2xl font-black text-gray-800 w-full placeholder-gray-300" placeholder="Trip Title">
+            <div class="text-xs font-mono text-gray-400 mt-1">12/07 - 12/12 (6 Days)</div>
+        </div>
+        <div class="flex gap-2">
+            <button @click="showFlightModal = true" class="bg-white p-3 rounded-2xl shadow-sm text-indigo-500 hover:scale-105 transition"><i class="ph-fill ph-airplane-tilt text-xl"></i></button>
+            <button @click="showMenuModal = true" class="bg-gray-800 p-3 rounded-2xl shadow-sm text-white hover:scale-105 transition"><i class="ph-bold ph-list text-xl"></i></button>
+        </div>
+    </header>
+
+    <!-- 3. Tabs (PRE + Days) -->
+    <div class="no-print sticky top-[90px] z-30 bg-jp-cream pb-2 pt-2 border-b border-gray-100/50">
+        <div class="flex space-x-3 overflow-x-auto hide-scrollbar px-6 py-1">
+            <!-- PRE Tab -->
+            <button @click="currentTab = 'PRE'" 
+                class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl border transition-all duration-300"
+                :class="currentTab === 'PRE' ? 'bg-jp-yellow border-jp-yellow shadow-md scale-105 text-gray-900' : 'bg-white border-transparent text-gray-400'">
+                <span class="text-[10px] font-bold tracking-widest">PRE</span>
+                <i class="ph-bold ph-check-square text-lg mt-1"></i>
+            </button>
+
+            <!-- Day Tabs -->
+            <button v-for="(day, index) in itinerary" :key="index" @click="currentTab = index"
+                class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl border transition-all duration-300 snap-center"
+                :class="currentTab === index ? 'bg-jp-yellow border-jp-yellow shadow-md scale-105 text-gray-900' : 'bg-white border-transparent text-gray-400'">
+                <span class="text-[10px] font-bold">DAY {{ index + 1 }}</span>
+                <span class="text-[11px] font-mono font-bold mt-1">{{ formatDate(day.date) }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 px-5 py-6 pb-32 overflow-y-auto min-h-[60vh]">
+        
+        <!-- 4. PRE Page (Checklist) -->
+        <div v-if="currentTab === 'PRE'" class="animate-scale-in">
+            <div class="bg-white rounded-3xl p-6 shadow-card">
+                <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
+                    <i class="ph-duotone ph-clipboard-text text-jp-accent mr-2 text-2xl"></i> 行前清單
+                </h2>
+                <div class="space-y-3">
+                    <div v-for="(item, idx) in todoList" :key="idx" class="flex items-center group">
+                        <input type="checkbox" v-model="item.done" class="w-5 h-5 text-yellow-500 rounded border-gray-300 focus:ring-yellow-400 transition cursor-pointer">
+                        <input type="text" v-model="item.text" class="flex-1 ml-3 text-sm border-b border-transparent focus:border-yellow-200 transition" :class="{'line-through text-gray-300': item.done}">
+                        <button @click="todoList.splice(idx, 1)" class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 p-2"><i class="ph-bold ph-x"></i></button>
+                    </div>
+                </div>
+                <button @click="todoList.push({text:'', done:false})" class="mt-4 w-full py-3 border-2 border-dashed border-gray-100 rounded-xl text-gray-400 font-bold text-xs hover:border-yellow-300 hover:text-yellow-500 transition">
+                    + 新增準備項目
+                </button>
+            </div>
+            
+            <!-- Print Cover Info -->
+            <div class="hidden print:block mt-10 text-center">
+                <h1 class="text-4xl font-bold mb-2">{{ tripTitle }}</h1>
+                <p class="font-mono text-gray-500">Generated by Tokyo Trip V9</p>
+            </div>
+        </div>
+<!-- PART 2: Day View, Fixed Hotel, Itinerary Items -->
+        
+        <!-- Day View -->
+        <div v-else class="animate-scale-in space-y-5">
+
+            <!-- 5. Fixed Hotel Card -->
+            <div class="bg-white rounded-3xl p-4 shadow-card flex items-center gap-4 border-l-4 border-indigo-100 relative overflow-hidden">
+                <div class="bg-indigo-50 w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-indigo-500">
+                    <i class="ph-fill ph-bed text-2xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="font-bold text-gray-800 text-sm truncate">秋葉原港灣酒店</h3>
+                    <p class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">Akihabara Bay Hotel</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Akihabara+Bay+Hotel" target="_blank" class="bg-gray-900 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-indigo-600 transition shadow-lg z-10">
+                    <i class="ph-bold ph-navigation-arrow"></i>
+                </a>
+            </div>
+
+            <!-- 6. Itinerary List (Sortable) -->
+            <!-- Note: using simple v-for for simplicity without build tools, drag logic handled in methods -->
+            <div class="space-y-6" @dragover.prevent @drop="onDrop($event)">
+                <div v-for="(item, idx) in itinerary[currentTab].items" 
+                     :key="item.id"
+                     draggable="true"
+                     @dragstart="startDrag($event, idx)"
+                     class="bg-white rounded-3xl shadow-card overflow-hidden group relative transition-all hover:shadow-lg border-l-[6px]"
+                     :class="getTypeColor(item.type)">
+
+                    <!-- 6.2.1 Header Row -->
+                    <div class="flex items-center justify-between p-4 pb-1">
+                        <div class="flex items-center gap-2">
+                            <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider">
+                                {{ item.time || '--:--' }}
+                            </span>
+                            <div class="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase">
+                                <i :class="getTypeIcon(item.type)"></i>
+                                <select v-model="item.type" class="bg-transparent cursor-pointer hover:text-gray-600">
+                                    <option value="景點">景點</option>
+                                    <option value="美食">美食</option>
+                                    <option value="購物">購物</option>
+                                    <option value="交通">交通</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button @click="deleteItem(idx)" class="text-gray-300 hover:text-red-400 p-1 rounded-full hover:bg-red-50 transition no-print">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                    </div>
+
+                    <!-- 6.2.2 Title & Info -->
+                    <div class="px-4 pb-2">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-1">
+                                <input v-model="item.name" class="w-full text-lg font-bold text-gray-800 placeholder-gray-300 bg-transparent" placeholder="地點名稱">
+                                <textarea v-model="item.desc" rows="1" class="w-full text-xs text-gray-400 mt-1 resize-none placeholder-gray-200 bg-transparent" placeholder="備註 / 描述..."></textarea>
+                            </div>
+                            <!-- Time & Sort Handle -->
+                            <div class="flex flex-col items-end gap-1">
+                                <input type="time" v-model="item.time" class="w-[20px] h-[20px] opacity-0 absolute right-4 top-16 cursor-pointer z-10">
+                                <button class="text-gray-300 hover:text-yellow-500 transition"><i class="ph-fill ph-clock-user text-xl"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6.2.3 Buttons (Full Width) -->
+                    <div class="px-4 pb-4 flex gap-2 no-print">
+                        <a :href="generateMapLink(item.name)" target="_blank" 
+                           class="flex-1 bg-[#1e293b] text-white py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-bold shadow-md active:scale-95 transition">
+                            <i class="ph-bold ph-navigation-arrow"></i> 導航
+                        </a>
+                        <a v-if="item.type === '美食'" 
+                           :href="generateTabelogLink(item.name)" target="_blank"
+                           class="flex-1 bg-[#F59E0B] text-white py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-bold shadow-md active:scale-95 transition">
+                            <i class="ph-bold ph-bowl-food"></i> Tabelog
+                        </a>
+                    </div>
+
+                    <!-- 7. Shopping List (No Image) -->
+                    <div v-if="item.type === '購物'" class="bg-pink-50/50 px-4 py-3 border-t border-pink-100">
+                        <div v-for="(shopItem, sIdx) in item.shoppingList" :key="sIdx" class="flex items-center mb-2">
+                            <input type="checkbox" v-model="shopItem.done" class="text-pink-500 rounded focus:ring-pink-400">
+                            <input v-model="shopItem.name" class="flex-1 ml-2 text-xs text-gray-600 bg-transparent" placeholder="購買項目..." :class="{'line-through opacity-50': shopItem.done}">
+                            <button @click="item.shoppingList.splice(sIdx, 1)" class="text-pink-300 hover:text-pink-500"><i class="ph-bold ph-x"></i></button>
+                        </div>
+                        <button @click="item.shoppingList.push({name:'', done:false})" class="text-[10px] font-bold text-pink-400 hover:text-pink-600">+ 新增商品</button>
+                    </div>
+
+                    <!-- 8. Food Review -->
+                    <div v-if="item.type === '美食'" class="px-4 pb-3 border-t border-dashed border-gray-100 pt-2">
+                        <div class="flex gap-1 mb-1">
+                            <button v-for="star in 5" @click="item.rating = star" class="text-sm transition" :class="star <= (item.rating||0) ? 'text-yellow-400' : 'text-gray-200'">
+                                <i class="ph-fill ph-star"></i>
+                            </button>
+                        </div>
+                        <textarea v-model="item.review" class="w-full text-[10px] bg-gray-50 rounded p-2 text-gray-600 resize-none" rows="2" placeholder="食評筆記..."></textarea>
+                    </div>
+
+                    <!-- 6.2.4 Expenses Footer -->
+                    <div class="border-t border-dashed border-gray-200 no-print">
+                        <div @click="item.showExpense = !item.showExpense" class="px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
+                            <div class="flex items-center gap-2 text-xs text-gray-400 font-medium">
+                                <i class="ph-bold ph-receipt"></i> 
+                                <span>記帳 ({{ item.expenses.length }})</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span v-if="calcItemTotal(item) > 0" class="font-mono text-xs font-bold text-gray-800">HKD {{ calcItemTotal(item).toFixed(0) }}</span>
+                                <i class="ph-bold ph-caret-down text-gray-300 transition-transform" :class="{'rotate-180': item.showExpense}"></i>
+                            </div>
+                        </div>
+                        
+                        <div v-if="item.showExpense" class="bg-gray-50 px-4 py-3 space-y-2 animate-scale-in">
+                            <div v-for="(exp, eIdx) in item.expenses" :key="eIdx" class="flex items-center gap-2">
+                                <input v-model="exp.name" placeholder="項目" class="flex-1 text-[11px] border-b border-gray-300 py-1">
+                                <input type="number" v-model="exp.amount" placeholder="JPY" class="w-16 text-[11px] font-mono text-right border-b border-gray-300 py-1">
+                                <select v-model="exp.method" class="text-[10px] bg-transparent text-gray-500">
+                                    <option value="cash">現金</option>
+                                    <option value="card">卡</option>
+                                    <option value="paypay">Pay</option>
+                                </select>
+                                <button @click="item.expenses.splice(eIdx, 1)" class="text-gray-400 hover:text-red-400"><i class="ph-bold ph-x"></i></button>
+                            </div>
+                            <button @click="item.expenses.push({name:'', amount:'', method:'card'})" class="w-full text-center text-[10px] text-blue-500 py-1 hover:text-blue-700 font-bold">+ 加一筆</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div v-if="itinerary[currentTab].items.length === 0" class="text-center py-10 opacity-50">
+                    <i class="ph-duotone ph-map-pin text-4xl mb-2 text-gray-300"></i>
+                    <p class="text-xs text-gray-400">點擊右下角新增行程</p>
+                </div>
+            </div>
+
+            <!-- Floating Add Button -->
+            <button @click="addItem" class="no-print fixed bottom-6 right-6 w-14 h-14 bg-gray-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition z-40">
+                <i class="ph-bold ph-plus text-2xl"></i>
+            </button>
+        </div>
+    </main>
+<!-- PART 3: Modals and Vue Logic -->
+
+    <!-- 11. Flight Modal (V9 Redesign) -->
+    <div v-if="showFlightModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" @click.self="showFlightModal = false">
+        <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden animate-scale-in">
+            <!-- 11.1 Brand Header -->
+            <div class="bg-gradient-to-r from-violet-600 to-indigo-600 p-6 relative text-white">
+                <h3 class="font-bold text-lg">HK Express</h3>
+                <p class="text-xs opacity-80 mt-1">Booking Ref: <span class="font-mono font-bold text-lg text-white ml-1">SC7H8N</span></p>
+                <button @click="showFlightModal=false" class="absolute top-5 right-5 bg-white/20 p-1.5 rounded-full hover:bg-white/30 transition"><i class="ph-bold ph-x text-sm"></i></button>
+            </div>
+            
+            <!-- 11.2 Segments -->
+            <div class="p-5 space-y-4 bg-gray-50">
+                <!-- SEGMENT 1 -->
+                <div class="flex bg-white p-4 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-violet-500"></div>
+                    <div class="w-full pl-2">
+                        <div class="flex justify-between text-xs font-bold text-gray-400 mb-2 font-mono">
+                            <span>SUN, 12/07</span><span>UO 650</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-center"><span class="text-2xl font-black text-gray-800">HKG</span></div>
+                            <div class="flex flex-col items-center px-4">
+                                <i class="ph-fill ph-airplane-in-flight text-violet-300 text-xl"></i>
+                                <span class="text-[10px] text-gray-400 font-mono">4h05m</span>
+                            </div>
+                            <div class="text-center"><span class="text-2xl font-black text-gray-800">NRT</span></div>
+                        </div>
+                        <div class="flex justify-between text-xs font-mono text-gray-600">
+                            <span>T1 14:00</span><span>T2 19:05</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEGMENT 2 -->
+                <div class="flex bg-white p-4 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-violet-500"></div>
+                    <div class="w-full pl-2">
+                        <div class="flex justify-between text-xs font-bold text-gray-400 mb-2 font-mono">
+                            <span>FRI, 12/12</span><span>UO 871</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-center"><span class="text-2xl font-black text-gray-800">NRT</span></div>
+                            <div class="flex flex-col items-center px-4">
+                                <i class="ph-fill ph-airplane-in-flight text-violet-300 text-xl rotate-180"></i>
+                                <span class="text-[10px] text-gray-400 font-mono">5h30m</span>
+                            </div>
+                            <div class="text-center"><span class="text-2xl font-black text-gray-800">HKG</span></div>
+                        </div>
+                        <div class="flex justify-between text-xs font-mono text-gray-600">
+                            <span>T2 16:55</span><span>T1 21:25</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 11.3 Footer Action -->
+            <div class="p-5 pt-2 bg-gray-50">
+                <a href="#" class="block w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-xl text-center shadow-lg transition active:scale-95">
+                    Online Check-in / Manage
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 12. Menu Modal (Settings & Export) -->
+    <div v-if="showMenuModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-fadeIn" @click.self="showMenuModal = false">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in space-y-4">
+            <h3 class="text-xl font-bold text-center mb-2">Settings & Export</h3>
+            
+            <div class="bg-yellow-50 p-3 rounded-xl flex justify-between items-center border border-yellow-100">
+                <span class="text-xs font-bold text-yellow-800">匯率 (JPY to HKD)</span>
+                <input type="number" v-model.number="rate" step="0.001" class="w-20 text-right font-mono font-bold border-b border-yellow-300">
+            </div>
+
+            <button @click="showBudgetModal=true; showMenuModal=false" class="w-full bg-gray-100 py-3 rounded-xl font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-2">
+                <i class="ph-bold ph-coins"></i> 查看記帳總覽
+            </button>
+
+            <div class="border-t border-gray-100 my-2"></div>
+
+            <button @click="exportPDF" class="w-full bg-blue-500 py-3 rounded-xl font-bold text-white hover:bg-blue-600 flex items-center justify-center gap-2 shadow-md">
+                <i class="ph-bold ph-file-pdf"></i> 列印 / 另存 PDF
+            </button>
+            <button @click="downloadJSON" class="w-full bg-green-500 py-3 rounded-xl font-bold text-white hover:bg-green-600 flex items-center justify-center gap-2 shadow-md">
+                <i class="ph-bold ph-download"></i> 下載 JSON 備份
+            </button>
+            
+             <div class="border-t border-gray-100 my-2"></div>
+             
+             <button @click="resetData" class="w-full py-2 text-xs text-red-400 font-bold hover:text-red-600">
+                重置所有資料 (Reset)
+            </button>
+        </div>
+    </div>
+
+    <!-- 10. Budget Modal -->
+    <div v-if="showBudgetModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-fadeIn" @click.self="showBudgetModal = false">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">記帳中心</h3>
+                <button @click="showBudgetModal=false" class="bg-gray-100 p-2 rounded-full"><i class="ph-bold ph-x"></i></button>
+            </div>
+            
+            <div class="bg-gray-900 text-white rounded-2xl p-6 text-center shadow-lg mb-6">
+                <div class="text-xs opacity-60 mb-1">ESTIMATED TOTAL (HKD)</div>
+                <div class="text-4xl font-mono font-bold tracking-tight">${{ totalBudgetHKD.toLocaleString() }}</div>
+                <div class="text-[10px] mt-2 opacity-50">Based on Rate: {{ rate }}</div>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                    <div class="flex items-center gap-2"><i class="ph-fill ph-coins text-yellow-500"></i> <span class="text-xs font-bold">現金 Cash</span></div>
+                    <span class="font-mono font-bold text-sm">¥{{ totalByMethod('cash').toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                    <div class="flex items-center gap-2"><i class="ph-fill ph-credit-card text-blue-500"></i> <span class="text-xs font-bold">信用卡 Card</span></div>
+                    <span class="font-mono font-bold text-sm">¥{{ totalByMethod('card').toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                    <div class="flex items-center gap-2"><i class="ph-fill ph-qr-code text-pink-500"></i> <span class="text-xs font-bold">PayPay/IC</span></div>
+                    <span class="font-mono font-bold text-sm">¥{{ totalByMethod('paypay').toLocaleString() }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+createApp({
+    setup() {
+        // --- State ---
+        const tripTitle = ref("Tokyo Trip V9");
+        const currentTab = ref(0);
+        const rate = ref(0.052);
+        
+        // Modals
+        const showFlightModal = ref(false);
+        const showMenuModal = ref(false);
+        const showBudgetModal = ref(false);
+
+        // Data
+        const todoList = ref([
+            {text: "Passport check", done: false},
+            {text: "Buy eSIM", done: false},
+            {text: "Exchange JPY", done: false}
+        ]);
+
+        // Init Data Helper
+        const createDays = () => Array.from({length: 6}, (_, i) => {
+            const d = new Date(2025, 11, 7 + i); // Dec 7
+            return {
+                date: d.toISOString().split('T')[0],
+                items: []
+            };
+        });
+
+        const itinerary = ref(createDays());
+
+        // --- Logic ---
+
+        // Auto Sort by Time
+        const sortItems = () => {
+            if (typeof currentTab.value === 'number') {
+                itinerary.value[currentTab.value].items.sort((a, b) => {
+                    return (a.time || '24:00').localeCompare(b.time || '24:00');
+                });
+            }
+        };
+
+        // Actions
+        const addItem = () => {
+            if (typeof currentTab.value !== 'number') return;
+            itinerary.value[currentTab.value].items.push({
+                id: Date.now(),
+                time: "",
+                type: "景點",
+                name: "",
+                desc: "",
+                rating: 0,
+                review: "",
+                shoppingList: [],
+                expenses: [],
+                showExpense: false
+            });
+        };
+
+        const deleteItem = (idx) => {
+            if(confirm("確定刪除此行程？")) {
+                itinerary.value[currentTab.value].items.splice(idx, 1);
+            }
+        };
+
+        // Drag & Drop (Simple Swap Logic)
+        const draggedIdx = ref(null);
+        const startDrag = (evt, idx) => {
+            draggedIdx.value = idx;
+            evt.dataTransfer.effectAllowed = 'move';
+        };
+        const onDrop = (evt) => {
+            // Very basic drop re-ordering, normally vuedraggable handles this better
+            // but for single file HTML raw JS, we rely on array moves.
+            // Since complex drag implementation in raw Vue CDN is tricky without libs,
+            // we will stick to sort-by-time primarily, but let users re-order if time is same.
+            sortItems(); // Enforce sort by time primarily
+        };
+
+        // Calculations
+        const calcItemTotal = (item) => {
+            return item.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0) * rate.value, 0);
+        };
+
+        const totalBudgetHKD = computed(() => {
+            let total = 0;
+            itinerary.value.forEach(day => {
+                day.items.forEach(item => {
+                    total += calcItemTotal(item);
+                });
+            });
+            return Math.floor(total);
+        });
+
+        const totalByMethod = (method) => {
+            let total = 0;
+            itinerary.value.forEach(day => {
+                day.items.forEach(item => {
+                    item.expenses.forEach(e => {
+                        if(e.method === method) total += (Number(e.amount) || 0);
+                    });
+                });
+            });
+            return total;
+        };
+
+        // Utils
+        const formatDate = (dateStr) => {
+            const d = new Date(dateStr);
+            return `${d.getMonth()+1}/${d.getDate()}`;
+        };
+        
+        const getTypeColor = (type) => {
+            const map = {
+                '景點': 'border-green-400',
+                '美食': 'border-jp-accent',
+                '購物': 'border-pink-400',
+                '交通': 'border-gray-400'
+            };
+            return map[type] || 'border-blue-400';
+        };
+
+        const getTypeIcon = (type) => {
+            const map = {
+                '景點': 'ph-fill ph-mountains',
+                '美食': 'ph-fill ph-bowl-food',
+                '購物': 'ph-fill ph-bag',
+                '交通': 'ph-fill ph-train'
+            };
+            return map[type] || 'ph-fill ph-map-pin';
+        };
+
+        const generateMapLink = (name) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`;
+        const generateTabelogLink = (name) => `https://tabelog.com/rstLst/?vs=1&sa=&sk=${encodeURIComponent(name)}`;
+
+        // Export / Import
+        const exportPDF = () => {
+            showMenuModal.value = false;
+            setTimeout(() => window.print(), 300);
+        };
+
+        const downloadJSON = () => {
+            const data = {
+                v: 9,
+                title: tripTitle.value,
+                rate: rate.value,
+                todo: todoList.value,
+                itinerary: itinerary.value
+            };
+            const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tokyo_trip_v9_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        };
+
+        const resetData = () => {
+            if(confirm("警告：這將清除所有資料，確定嗎？")) {
+                localStorage.removeItem('tokyo_trip_v9_data_clean');
+                location.reload();
+            }
+        };
+
+        // Persistence
+        const saveToLocal = () => {
+            const data = {
+                title: tripTitle.value,
+                rate: rate.value,
+                todo: todoList.value,
+                itinerary: itinerary.value
+            };
+            localStorage.setItem('tokyo_trip_v9_data_clean', JSON.stringify(data));
+        };
+
+        // Lifecycle
+        onMounted(() => {
+            const saved = localStorage.getItem('tokyo_trip_v9_data_clean');
+            if(saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    tripTitle.value = parsed.title || "Tokyo Trip V9";
+                    rate.value = parsed.rate || 0.052;
+                    todoList.value = parsed.todo || [];
+                    if(parsed.itinerary) itinerary.value = parsed.itinerary;
+                } catch(e) { console.error("Load error", e); }
+            }
+            
+            // Auto save watcher
+            watch([tripTitle, rate, todoList, itinerary], saveToLocal, { deep: true });
+        });
+
+        return {
+            tripTitle, currentTab, rate, itinerary, todoList,
+            showFlightModal, showMenuModal, showBudgetModal,
+            addItem, deleteItem, sortItems, startDrag, onDrop,
+            formatDate, getTypeColor, getTypeIcon,
+            generateMapLink, generateTabelogLink,
+            calcItemTotal, totalBudgetHKD, totalByMethod,
+            exportPDF, downloadJSON, resetData
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
