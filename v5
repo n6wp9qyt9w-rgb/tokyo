@@ -1,0 +1,456 @@
+<!-- PART 1: Head, Styles, Header, Shopping Modal -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tokyo Trip V9.1</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FEFCE8">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'jp-cream': '#FEFCE8',
+                        'jp-yellow': '#FDE047',
+                        'jp-accent': '#F59E0B',
+                        'jp-dark': '#4B5563',
+                    },
+                    fontFamily: {
+                        sans: ['"Zen Maru Gothic"', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace']
+                    },
+                    boxShadow: { 'card': '0 8px 30px rgba(0,0,0,0.04)' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #FEFCE8; color: #4B5563; -webkit-tap-highlight-color: transparent; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        input, select, textarea { outline: none; background: transparent; border: none; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+        }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="max-w-[480px] mx-auto min-h-screen flex flex-col relative shadow-2xl print:max-w-full print:shadow-none bg-jp-cream">
+
+    <!-- Header -->
+    <header class="no-print px-6 pt-12 pb-4 sticky top-0 z-40 bg-jp-cream/90 backdrop-blur-md border-b border-yellow-100/50 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-black text-gray-800">Tokyo Trip <span class="text-jp-accent">V9.1</span></h1>
+            <div class="text-xs font-mono text-gray-400 mt-1">12/07 - 12/12 (Solo Trip)</div>
+        </div>
+        <div class="flex gap-2">
+            <button @click="showShoppingModal = true" class="bg-pink-50 p-3 rounded-2xl shadow-sm text-pink-500 hover:scale-105 transition"><i class="ph-fill ph-bag text-xl"></i></button>
+            <button @click="showMenuModal = true" class="bg-gray-800 p-3 rounded-2xl shadow-sm text-white hover:scale-105 transition"><i class="ph-bold ph-list text-xl"></i></button>
+        </div>
+    </header>
+
+    <!-- NEW: Shopping Summary Modal -->
+    <div v-if="showShoppingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" @click.self="showShoppingModal = false">
+        <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[85vh]">
+            <div class="bg-pink-500 p-6 text-white relative">
+                <h3 class="font-bold text-xl flex items-center gap-2"><i class="ph-bold ph-bag"></i> 購物總清單</h3>
+                <p class="text-xs opacity-80 mt-1">整合所有行程中的待買項目</p>
+                <button @click="showShoppingModal=false" class="absolute top-5 right-5 bg-white/20 p-1.5 rounded-full hover:bg-white/30"><i class="ph-bold ph-x text-sm"></i></button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-5 space-y-4 bg-pink-50/30">
+                <div v-if="allShoppingItems.length === 0" class="text-center text-gray-400 py-10">
+                    目前沒有購物行程
+                </div>
+                <div v-for="(group, idx) in allShoppingItems" :key="idx" class="bg-white p-4 rounded-2xl shadow-sm border border-pink-100">
+                    <div class="flex justify-between items-center mb-2 border-b border-pink-50 pb-2">
+                        <span class="text-xs font-bold text-gray-400 font-mono">{{ group.date }}</span>
+                        <span class="text-sm font-bold text-gray-800">{{ group.location }}</span>
+                    </div>
+                    <!-- Main Item Check (if needed) -->
+                     <div class="mb-2">
+                        <span class="text-xs text-pink-500 bg-pink-50 px-2 py-0.5 rounded">主要目標</span>
+                    </div>
+                    
+                    <!-- Sub Items -->
+                    <div class="space-y-2">
+                        <div v-if="group.subItems.length === 0" class="text-[10px] text-gray-400 italic pl-2">
+                            未列出細項
+                        </div>
+                        <div v-for="(sub, sIdx) in group.subItems" :key="sIdx" class="flex items-center gap-2 pl-2">
+                            <input type="checkbox" v-model="sub.done" class="text-pink-500 rounded focus:ring-pink-400">
+                            <span class="text-xs text-gray-600" :class="{'line-through opacity-50': sub.done}">{{ sub.name }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-white border-t border-gray-100">
+                <button @click="copyShoppingList" class="w-full bg-pink-500 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition">
+                    <i class="ph-bold ph-copy"></i> 複製清單文字
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- PART 2: Main UI, Day View, Itinerary Card (Time Fixed) -->
+
+    <!-- Tabs -->
+    <div class="no-print sticky top-[88px] z-30 bg-jp-cream pb-2 pt-1 border-b border-gray-100/50">
+        <div class="flex space-x-3 overflow-x-auto hide-scrollbar px-6 py-1">
+            <button @click="currentTab = 'PRE'" 
+                class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl border transition-all duration-300"
+                :class="currentTab === 'PRE' ? 'bg-jp-yellow border-jp-yellow shadow-md scale-105 text-gray-900' : 'bg-white border-transparent text-gray-400'">
+                <span class="text-[10px] font-bold tracking-widest">PRE</span>
+                <i class="ph-bold ph-check-square text-lg mt-1"></i>
+            </button>
+            <button v-for="(day, index) in itinerary" :key="index" @click="currentTab = index"
+                class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl border transition-all duration-300 snap-center"
+                :class="currentTab === index ? 'bg-jp-yellow border-jp-yellow shadow-md scale-105 text-gray-900' : 'bg-white border-transparent text-gray-400'">
+                <span class="text-[10px] font-bold">DAY {{ index + 1 }}</span>
+                <span class="text-[11px] font-mono font-bold mt-1">{{ formatDate(day.date) }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 px-5 py-6 pb-32 overflow-y-auto min-h-[60vh]">
+        
+        <!-- PRE Page -->
+        <div v-if="currentTab === 'PRE'" class="animate-scale-in">
+            <div class="bg-white rounded-3xl p-6 shadow-card">
+                <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
+                    <i class="ph-duotone ph-clipboard-text text-jp-accent mr-2 text-2xl"></i> 行前清單
+                </h2>
+                <div class="space-y-3">
+                    <div v-for="(item, idx) in todoList" :key="idx" class="flex items-center group">
+                        <input type="checkbox" v-model="item.done" class="w-5 h-5 text-yellow-500 rounded border-gray-300 cursor-pointer">
+                        <input type="text" v-model="item.text" class="flex-1 ml-3 text-sm border-b border-transparent focus:border-yellow-200" :class="{'line-through text-gray-300': item.done}">
+                        <button @click="todoList.splice(idx, 1)" class="text-gray-300 hover:text-red-400 p-2"><i class="ph-bold ph-trash"></i></button>
+                    </div>
+                </div>
+                <button @click="todoList.push({text:'', done:false})" class="mt-4 w-full py-3 border-2 border-dashed border-gray-100 rounded-xl text-gray-400 font-bold text-xs hover:border-yellow-300 transition">+ 新增項目</button>
+            </div>
+        </div>
+        
+        <!-- Day View -->
+        <div v-else class="animate-scale-in space-y-5">
+
+            <!-- Day Header Actions -->
+            <div class="flex justify-end items-center gap-2 mb-[-10px] relative z-10 no-print">
+                <button @click="sortItems" class="bg-white border border-gray-100 text-gray-500 px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition">
+                    <i class="ph-bold ph-arrows-down-up"></i> 按時間排序
+                </button>
+            </div>
+
+            <!-- Fixed Hotel -->
+            <div class="bg-white rounded-3xl p-4 shadow-card flex items-center gap-4 border-l-4 border-indigo-100 relative">
+                <div class="bg-indigo-50 w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-indigo-500">
+                    <i class="ph-fill ph-bed text-2xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="font-bold text-gray-800 text-sm truncate">秋葉原港灣酒店</h3>
+                    <p class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">Akihabara Bay Hotel</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Akihabara+Bay+Hotel" target="_blank" class="bg-gray-900 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg">
+                    <i class="ph-bold ph-navigation-arrow"></i>
+                </a>
+            </div>
+
+            <!-- Itinerary List -->
+            <div class="space-y-6">
+                <div v-for="(item, idx) in itinerary[currentTab].items" 
+                     :key="item.id"
+                     class="bg-white rounded-3xl shadow-card overflow-hidden group relative transition-all hover:shadow-lg border-l-[6px]"
+                     :class="getTypeColor(item.type)">
+
+                    <!-- 6.2.1 Header Row (Time FIXED) -->
+                    <div class="flex items-center justify-between p-4 pb-1">
+                        <div class="flex items-center gap-2">
+                            <!-- Time Input Fixed: Now clickable and editable -->
+                            <div class="bg-gray-100 rounded-md px-2 py-1 flex items-center">
+                                <i class="ph-bold ph-clock text-[10px] text-gray-400 mr-1"></i>
+                                <input type="time" v-model="item.time" class="bg-transparent text-[11px] font-mono font-bold text-gray-600 w-[50px] cursor-pointer">
+                            </div>
+                            
+                            <div class="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase">
+                                <i :class="getTypeIcon(item.type)"></i>
+                                <select v-model="item.type" class="bg-transparent cursor-pointer hover:text-gray-600 w-16">
+                                    <option value="景點">景點</option><option value="美食">美食</option>
+                                    <option value="購物">購物</option><option value="交通">交通</option>
+                                    <option value="住宿">住宿</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button @click="deleteItem(idx)" class="text-gray-300 hover:text-red-400 p-1 no-print"><i class="ph-bold ph-trash"></i></button>
+                    </div>
+
+                    <!-- 6.2.2 Title & Info -->
+                    <div class="px-4 pb-2">
+                        <input v-model="item.name" class="w-full text-lg font-bold text-gray-800 bg-transparent" placeholder="地點名稱">
+                        <textarea v-model="item.desc" rows="2" class="w-full text-xs text-gray-400 mt-1 resize-none bg-transparent" placeholder="備註 / 描述..."></textarea>
+                    </div>
+
+                    <!-- 6.2.3 Buttons -->
+                    <div class="px-4 pb-4 flex gap-2 no-print">
+                        <a :href="generateMapLink(item.name)" target="_blank" 
+                           class="flex-1 bg-[#1e293b] text-white py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-bold shadow-md active:scale-95 transition">
+                            <i class="ph-bold ph-navigation-arrow"></i> 導航
+                        </a>
+                        <a v-if="item.type === '美食'" 
+                           :href="generateTabelogLink(item.name)" target="_blank"
+                           class="flex-1 bg-[#F59E0B] text-white py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-bold shadow-md active:scale-95 transition">
+                            <i class="ph-bold ph-bowl-food"></i> Tabelog
+                        </a>
+                    </div>
+
+                    <!-- Shopping List -->
+                    <div v-if="item.type === '購物'" class="bg-pink-50/50 px-4 py-3 border-t border-pink-100">
+                        <div v-for="(shopItem, sIdx) in item.shoppingList" :key="sIdx" class="flex items-center mb-2">
+                            <input type="checkbox" v-model="shopItem.done" class="text-pink-500 rounded">
+                            <input v-model="shopItem.name" class="flex-1 ml-2 text-xs text-gray-600 bg-transparent" placeholder="購買項目...">
+                            <button @click="item.shoppingList.splice(sIdx, 1)" class="text-pink-300 hover:text-pink-500"><i class="ph-bold ph-x"></i></button>
+                        </div>
+                        <button @click="item.shoppingList.push({name:'', done:false})" class="text-[10px] font-bold text-pink-400">+ 新增商品</button>
+                    </div>
+
+                    <!-- Expense Footer -->
+                    <div class="border-t border-dashed border-gray-200 no-print">
+                        <div @click="item.showExpense = !item.showExpense" class="px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
+                            <div class="flex items-center gap-2 text-xs text-gray-400 font-medium"><i class="ph-bold ph-receipt"></i> <span>記帳 ({{ item.expenses.length }})</span></div>
+                            <div class="flex items-center gap-2">
+                                <span v-if="calcItemTotal(item) > 0" class="font-mono text-xs font-bold text-gray-800">HKD {{ calcItemTotal(item).toFixed(0) }}</span>
+                                <i class="ph-bold ph-caret-down text-gray-300 transition-transform" :class="{'rotate-180': item.showExpense}"></i>
+                            </div>
+                        </div>
+                        <div v-if="item.showExpense" class="bg-gray-50 px-4 py-3 space-y-2">
+                            <div v-for="(exp, eIdx) in item.expenses" :key="eIdx" class="flex items-center gap-2">
+                                <input v-model="exp.name" placeholder="項目" class="flex-1 text-[11px] border-b border-gray-300 py-1">
+                                <input type="number" v-model="exp.amount" placeholder="JPY" class="w-16 text-[11px] font-mono text-right border-b border-gray-300 py-1">
+                                <select v-model="exp.method" class="text-[10px] bg-transparent text-gray-500"><option value="cash">現金</option><option value="card">卡</option><option value="paypay">Pay</option></select>
+                                <button @click="item.expenses.splice(eIdx, 1)" class="text-gray-400 hover:text-red-400"><i class="ph-bold ph-x"></i></button>
+                            </div>
+                            <button @click="item.expenses.push({name:'', amount:'', method:'card'})" class="w-full text-center text-[10px] text-blue-500 font-bold">+ 加一筆</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="itinerary[currentTab].items.length === 0" class="text-center py-10 opacity-50">
+                    <p class="text-xs text-gray-400">點擊右下角新增行程</p>
+                </div>
+            </div>
+
+            <button @click="addItem" class="no-print fixed bottom-6 right-6 w-14 h-14 bg-gray-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition z-40">
+                <i class="ph-bold ph-plus text-2xl"></i>
+            </button>
+        </div>
+    </main>
+                  <!-- PART 3: Vue Logic, JSON Data Injection, Modals -->
+
+    <!-- Other Modals (Flight, Budget, Menu) same as before but abbreviated here for logic focus -->
+    <div v-if="showMenuModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm" @click.self="showMenuModal = false">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in space-y-4">
+             <h3 class="text-xl font-bold text-center mb-2">設定 & 導出</h3>
+             <div class="bg-yellow-50 p-3 rounded-xl flex justify-between items-center border border-yellow-100">
+                <span class="text-xs font-bold text-yellow-800">匯率 (JPY→HKD)</span>
+                <input type="number" v-model.number="rate" step="0.001" class="w-20 text-right font-mono font-bold border-b border-yellow-300">
+            </div>
+             <button @click="resetData" class="w-full py-2 text-xs text-red-400 font-bold hover:text-red-600">重置所有資料</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+// 🟢 1. 預設行程資料 (JSON Injection)
+const defaultData = [
+    {
+      "date": "2025-12-07",
+      "items": [
+        { "time": "21:00", "type": "住宿", "name": "秋葉原港灣酒店 (Akihabara Hotel)", "desc": "Check-in，位於秋葉原電器街與神田之間，交通便利。地址：東京都千代田区神田練塀町44-4" },
+        { "time": "21:30", "type": "美食", "name": "らーめん 鴨to葱 上野御徒町本店", "desc": "深夜營業至凌晨4點。只用鴨、蔥、水熬製湯頭。地址：東京都台東区上野6-4-15" }
+      ]
+    },
+    {
+      "date": "2025-12-08",
+      "items": [
+        { "time": "08:30", "type": "美食", "name": "Katsuo Shokudo (かつお食堂)", "desc": "米其林必比登推薦。現刨鰹魚片配熱白飯。地址：東京都渋谷区鶯谷町7-12" },
+        { "time": "10:00", "type": "購物", "name": "Bic Camera 秋葉原店", "desc": "購買發熱衣(Heattech)、圍巾、手套、暖暖貼等保暖小物。" },
+        { "time": "11:00", "type": "購物", "name": "GU / Uniqlo 秋葉原店", "desc": "購買平價服飾、針織毛衣、羽絨外套。" },
+        { "time": "12:00", "type": "交通", "name": "前往澀谷", "desc": "搭乘JR山手線至澀谷，約30分鐘。" },
+        { "time": "12:30", "type": "美食", "name": "BASO OMOTESANDO", "desc": "爆紅沾麵蕎麥麵，推薦鹽鴨湯沾麵。地址：東京都渋谷区神宮前6-11-7" },
+        { "time": "13:30", "type": "購物", "name": "Plotter 旗艦店", "desc": "購買皮革活頁筆記本、黃銅文具。地址：東京都渋谷区神宮前3-29-3" },
+        { "time": "15:00", "type": "購物", "name": "松本清 澀谷 Part 1", "desc": "7層樓大型藥妝店，購買面膜、護髮油。" },
+        { "time": "17:00", "type": "購物", "name": "Five Omotesando", "desc": "專業髮型用品店，購買沙龍級護髮油、染髮劑。" }
+      ]
+    },
+    {
+      "date": "2025-12-09",
+      "items": [
+        { "time": "07:30", "type": "景點", "name": "富士山一日遊集合 (新宿)", "desc": "集合參加富士山一日遊，前往河口湖、忍野八海。" },
+        { "time": "14:00", "type": "購物", "name": "御殿場 Premium Outlets", "desc": "購買Nike, Adidas, New Balance運動鞋。建議停留2-3小時。" },
+        { "time": "19:00", "type": "交通", "name": "返回新宿解散", "desc": "一日遊行程結束，回到新宿。" },
+        { "time": "19:30", "type": "美食", "name": "Tsukiji Miyagawa Honten Isetan", "desc": "百年老店鰻魚飯 (伊勢丹百貨 7樓)。" },
+        { "time": "21:00", "type": "購物", "name": "世界堂 新宿本店", "desc": "五層樓大型文具畫材店。營業至20:00 (需注意時間)。" }
+      ]
+    },
+    {
+      "date": "2025-12-10",
+      "items": [
+        { "time": "10:00", "type": "交通", "name": "前往吉祥寺", "desc": "從新宿搭乘JR中央線至吉祥寺，約15分鐘。" },
+        { "time": "12:00", "type": "購物", "name": "36 Sublo (サブロ)", "desc": "精選文具店，特色高品質紙品、木製印章。" },
+        { "time": "13:00", "type": "美食", "name": "吉祥寺午餐", "desc": "吉祥寺商店街自由午餐。" },
+        { "time": "14:00", "type": "購物", "name": "Paper message", "desc": "手繪卡片、日曆、信紙為主的獨立設計紙品店。" },
+        { "time": "15:30", "type": "購物", "name": "山田文具店", "desc": "三鷹市懷舊故事感文具店，販售復古鉛筆、學校風文具。" },
+        { "time": "18:30", "type": "美食", "name": "Kanda Matsuya (神田まつや)", "desc": "1884年創業老字號手打蕎麥麵。" }
+      ]
+    },
+    {
+      "date": "2025-12-11",
+      "items": [
+        { "time": "12:00", "type": "購物", "name": "Travelers Factory 中目黑", "desc": "TRAVELER'S notebook 品牌概念店，購買限定商品。" },
+        { "time": "13:30", "type": "美食", "name": "中目黑午餐", "desc": "中目黑周邊咖啡廳或小餐廳午餐。" },
+        { "time": "15:00", "type": "購物", "name": "Pokémon Center Mega Tokyo", "desc": "池袋 Sunshine City 4F，日本最大寶可夢中心。" },
+        { "time": "17:00", "type": "美食", "name": "五代目 花山烏冬 日本橋店", "desc": "超寬「鬼紐川烏龍麵」。建議晚餐開門前排隊。" },
+        { "time": "19:00", "type": "景點", "name": "東京聖誕市集 (芝公園)", "desc": "東京鐵塔背景下的德式聖誕市集，喝熱紅酒、逛手工藝品。" }
+      ]
+    },
+    {
+      "date": "2025-12-12",
+      "items": [
+        { "time": "09:00", "type": "購物", "name": "最後採買 - 藥妝補貨", "desc": "新宿/澀谷藥妝店最後補貨。" },
+        { "time": "11:00", "type": "美食", "name": "洋食 GOTOO", "desc": "大塚站步行2分鐘。推薦炸牡蠣、生薑燒肉定食。" },
+        { "time": "13:00", "type": "交通", "name": "前往成田機場", "desc": "從日暮里搭乘Skyliner至成田機場，確保16:55起飛前抵達。" }
+      ]
+    }
+];
+
+createApp({
+    setup() {
+        const currentTab = ref(0);
+        const rate = ref(0.052);
+        const showShoppingModal = ref(false);
+        const showMenuModal = ref(false);
+        const itinerary = ref([]);
+        const todoList = ref([{text: "Passport check", done: false}, {text: "Buy eSIM", done: false}]);
+
+        // 2. Load Data Logic
+        const initData = () => {
+            // Check local storage first, else use defaultData
+            const saved = localStorage.getItem('tokyo_trip_v9_1_data');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                itinerary.value = parsed.itinerary;
+                todoList.value = parsed.todo;
+                rate.value = parsed.rate || 0.052;
+            } else {
+                // Transform defaultData to ensure reactive properties exist
+                itinerary.value = defaultData.map(d => ({
+                    date: d.date,
+                    items: d.items.map(i => ({
+                        id: Date.now() + Math.random(),
+                        ...i,
+                        shoppingList: [], // Ensure array exists
+                        expenses: [],
+                        showExpense: false
+                    }))
+                }));
+            }
+        };
+
+        // 3. Sorting Logic
+        const sortItems = () => {
+            if (typeof currentTab.value === 'number') {
+                itinerary.value[currentTab.value].items.sort((a, b) => {
+                    return (a.time || '24:00').localeCompare(b.time || '24:00');
+                });
+            }
+        };
+
+        // 4. Shopping Aggregate Logic
+        const allShoppingItems = computed(() => {
+            const list = [];
+            itinerary.value.forEach(day => {
+                day.items.forEach(item => {
+                    if (item.type === '購物' || (item.shoppingList && item.shoppingList.length > 0)) {
+                        list.push({
+                            date: day.date.slice(5),
+                            location: item.name,
+                            subItems: item.shoppingList || []
+                        });
+                    }
+                });
+            });
+            return list;
+        });
+
+        const copyShoppingList = () => {
+            let text = "🛍️ 東京購物清單 \n";
+            allShoppingItems.value.forEach(g => {
+                text += `\n[${g.date}] ${g.location}\n`;
+                if(g.subItems.length > 0) {
+                    g.subItems.forEach(s => text += ` - ${s.name} ${s.done?'(已買)':''}\n`);
+                } else {
+                    text += ` - (無細項)\n`;
+                }
+            });
+            navigator.clipboard.writeText(text).then(() => alert("清單已複製！"));
+        };
+
+        // Standard Actions
+        const addItem = () => {
+            if (typeof currentTab.value !== 'number') return;
+            itinerary.value[currentTab.value].items.push({
+                id: Date.now(), time: "", type: "景點", name: "", desc: "",
+                shoppingList: [], expenses: [], showExpense: false
+            });
+        };
+        const deleteItem = (idx) => {
+            if(confirm("確定刪除此行程？")) itinerary.value[currentTab.value].items.splice(idx, 1);
+        };
+        const calcItemTotal = (item) => item.expenses.reduce((s, e) => s + (Number(e.amount)||0) * rate.value, 0);
+        
+        // Utils
+        const formatDate = (s) => `${new Date(s).getMonth()+1}/${new Date(s).getDate()}`;
+        const getTypeColor = (t) => ({'景點':'border-green-400','美食':'border-jp-accent','購物':'border-pink-400','交通':'border-gray-400'}[t]||'border-blue-400');
+        const getTypeIcon = (t) => ({'景點':'ph-fill ph-mountains','美食':'ph-fill ph-bowl-food','購物':'ph-fill ph-bag','交通':'ph-fill ph-train'}[t]||'ph-fill ph-map-pin');
+        const generateMapLink = (n) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n)}`;
+        const generateTabelogLink = (n) => `https://tabelog.com/rstLst/?vs=1&sa=&sk=${encodeURIComponent(n)}`;
+        const resetData = () => {
+            if(confirm("重置將恢復預設行程，確定？")) {
+                localStorage.removeItem('tokyo_trip_v9_1_data');
+                location.reload();
+            }
+        };
+
+        // Lifecycle
+        onMounted(initData);
+        watch([itinerary, todoList, rate], () => {
+            localStorage.setItem('tokyo_trip_v9_1_data', JSON.stringify({itinerary: itinerary.value, todo: todoList.value, rate: rate.value}));
+        }, {deep:true});
+
+        return {
+            currentTab, itinerary, todoList, rate, showShoppingModal, showMenuModal,
+            allShoppingItems, sortItems, copyShoppingList, addItem, deleteItem,
+            formatDate, getTypeColor, getTypeIcon, calcItemTotal, generateMapLink, generateTabelogLink, resetData
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
